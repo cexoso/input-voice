@@ -48,10 +48,20 @@ install: build
 	@echo "==> Installed to $(INSTALL_DIR)/$(APP_BUNDLE)"
 	@echo "==> You may need to grant Accessibility permissions in System Settings."
 
+## Package .app into a zip for GitHub Releases
+release: build
+	@echo "==> Packaging $(APP_BUNDLE) into zip..."
+	@rm -f $(APP_NAME).zip
+	@ditto -c -k --sequesterRsrc --keepParent $(APP_BUNDLE) $(APP_NAME).zip
+	@echo "==> SHA256:"
+	@shasum -a 256 $(APP_NAME).zip
+	@echo "==> Done: $(APP_NAME).zip"
+
 ## Clean build artifacts
 clean:
 	@echo "==> Cleaning..."
 	@swift package clean
 	@rm -rf $(APP_BUNDLE)
 	@rm -rf $(BUILD_DIR)
+	@rm -f $(APP_NAME).zip
 	@echo "==> Clean done."
