@@ -1,5 +1,8 @@
 import AppKit
 import Carbon
+import OSLog
+
+private let logger = Logger(subsystem: "com.inputvoice.app", category: "FnKeyMonitor")
 
 // The Fn key on Apple keyboards produces NX_SYSDEFINED events (event type 14).
 // We intercept them via CGEvent tap and suppress to prevent the system Emoji Picker.
@@ -19,11 +22,7 @@ class FnKeyMonitor {
     private var isFnDown = false
 
     func start() {
-        // Build event mask: NX_SYSDEFINED | flagsChanged
-        // NX_SYSDEFINED = 14, so bit = (1 << 14)
-        let sysDefinedBit: CGEventMask = CGEventMask(1) << kNXSysDefined
-        let flagsChangedBit: CGEventMask = CGEventMask(1) << CGEventType.flagsChanged.rawValue
-        let eventMask: CGEventMask = sysDefinedBit | flagsChangedBit
+        let eventMask: CGEventMask = CGEventMask(1) << CGEventType.flagsChanged.rawValue
 
         let selfPtr = Unmanaged.passRetained(self).toOpaque()
 
@@ -35,7 +34,7 @@ class FnKeyMonitor {
             callback: fnKeyCallback,
             userInfo: selfPtr
         ) else {
-            print("[FnKeyMonitor] Failed to create CGEvent tap – grant Accessibility access in System Settings.")
+            logger.error("Failed to create CGEvent tap — grant Accessibility access in System Settings")
             return
         }
 
@@ -43,6 +42,7 @@ class FnKeyMonitor {
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        logger.info("CGEvent tap created and enabled")
     }
 
     func stop() {
@@ -59,38 +59,24 @@ class FnKeyMonitor {
         type: CGEventType,
         event: CGEvent
     ) -> Unmanaged<CGEvent>? {
-        guard type.rawValue == kNXSysDefined else {
+        guard type == .flagsChanged else {
             return Unmanaged.passRetained(event)
         }
 
-        guard let nsEvent = NSEvent(cgEvent: event) else {
-            return Unmanaged.passRetained(event)
-        }
+        let flags = event.flags
+        let fnDown = flags.contains(.maskSecondaryFn)
 
-        // subtype 8 = NX_SUBTYPE_AUX_CONTROL_BUTTONS (Fn, brightness, volume keys)
-        guard nsEvent.subtype.rawValue == 8 else {
-            return Unmanaged.passRetained(event)
-        }
-
-        let data1 = nsEvent.data1
-        let keyCode = (data1 & 0xFFFF_0000) >> 16   // key number
-        let keyState = (data1 & 0x0000_FF00) >> 8    // 0x0a = down, 0x0b = up
-
-        // NX_KEYTYPE_FN = 3
-        guard keyCode == 3 else {
-            return Unmanaged.passRetained(event)
-        }
-
-        if keyState == 0x0a && !isFnDown {
+        if fnDown && !isFnDown {
             isFnDown = true
+            logger.info("Fn key down detected (flagsChanged)")
             onFnDown?()
-        } else if keyState == 0x0b && isFnDown {
+        } else if !fnDown && isFnDown {
             isFnDown = false
+            logger.info("Fn key up detected (flagsChanged)")
             onFnUp?()
         }
 
-        // Suppress the event to prevent Emoji Picker from appearing
-        return nil
+        return Unmanaged.passRetained(event)
     }
 }
 

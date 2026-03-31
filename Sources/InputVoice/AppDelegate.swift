@@ -1,5 +1,9 @@
 import AppKit
 import Speech
+import AVFoundation
+import OSLog
+
+private let logger = Logger(subsystem: "com.inputvoice.app", category: "AppDelegate")
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
@@ -21,8 +25,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     ]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        logger.info("App launched")
         NSApp.setActivationPolicy(.accessory)
 
+        requestMicrophonePermission()
         requestSpeechPermission()
 
         llmRefiner = LLMRefiner()
@@ -42,18 +48,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         fnKeyMonitor.start()
     }
 
+    func requestMicrophonePermission() {
+        AVCaptureDevice.requestAccess(for: .audio) { granted in
+            logger.info("Microphone permission: \(granted ? "granted" : "denied")")
+        }
+    }
+
     func requestSpeechPermission() {
         SFSpeechRecognizer.requestAuthorization { status in
             switch status {
-            case .authorized: break
-            case .denied, .restricted, .notDetermined:
-                DispatchQueue.main.async {
-                    let alert = NSAlert()
-                    alert.messageText = "Speech Recognition Permission Required"
-                    alert.informativeText = "Please grant microphone and speech recognition access in System Settings."
-                    alert.runModal()
-                }
-            @unknown default: break
+            case .authorized:
+                logger.info("Speech recognition permission: authorized")
+            case .denied:
+                logger.error("Speech recognition permission: denied")
+            case .restricted:
+                logger.error("Speech recognition permission: restricted")
+            case .notDetermined:
+                logger.error("Speech recognition permission: notDetermined")
+            @unknown default:
+                logger.error("Speech recognition permission: unknown")
             }
         }
     }
@@ -134,6 +147,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func startRecording() {
+        logger.info("Fn key down — starting recording")
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             if self.floatingWindow == nil {
@@ -145,6 +159,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func stopRecording() {
+        logger.info("Fn key up — stopping recording")
         speechEngine.stopRecording()
     }
 }

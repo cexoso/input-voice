@@ -1,6 +1,9 @@
 import Foundation
 import Speech
 import AVFoundation
+import OSLog
+
+private let logger = Logger(subsystem: "com.inputvoice.app", category: "SpeechEngine")
 
 protocol SpeechEngineDelegate: AnyObject {
     func speechEngine(_ engine: SpeechEngine, didUpdateTranscription text: String)
@@ -62,8 +65,9 @@ class SpeechEngine: NSObject {
         audioEngine.prepare()
         do {
             try audioEngine.start()
+            logger.info("Audio engine started")
         } catch {
-            print("[SpeechEngine] Failed to start audio engine: \(error)")
+            logger.error("Failed to start audio engine: \(error)")
             return
         }
 
@@ -77,25 +81,29 @@ class SpeechEngine: NSObject {
 
             if let result = result {
                 let text = result.bestTranscription.formattedString
+                logger.info("Transcription updated: \(text)")
                 self.currentTranscription = text
                 self.delegate?.speechEngine(self, didUpdateTranscription: text)
             }
 
             if let error = error {
                 let nsError = error as NSError
-                // Ignore cancellation errors
                 if nsError.domain == "kAFAssistantErrorDomain" && nsError.code == 301 {
-                    // Normal cancellation
+                    logger.info("Recognition task cancelled (normal)")
                 } else {
-                    print("[SpeechEngine] Recognition error: \(error)")
+                    logger.error("Recognition error: \(error)")
                 }
             }
         }
     }
 
     func stopRecording() {
-        guard isRecording else { return }
+        guard isRecording else {
+            logger.warning("stopRecording called but not recording")
+            return
+        }
         isRecording = false
+        logger.info("Stopping recording")
 
         audioEngine.inputNode.removeTap(onBus: 0)
         audioEngine.stop()
