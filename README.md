@@ -104,3 +104,38 @@ make clean    # 清理构建产物
 ```bash
 CODESIGN_IDENTITY="Developer ID Application: Your Name" make install
 ```
+
+## 发布新版本
+
+### 前置条件
+
+- 已安装并登录 `gh` CLI：`gh auth login`
+- homebrew-tap 仓库已克隆到 `~/github/homebrew-tap`
+- 所有改动已 commit 并推送到 main 分支
+
+### 发布步骤
+
+执行一条命令：
+
+```bash
+make publish VERSION=v1.x.0
+```
+
+该命令会自动完成以下所有步骤：
+
+1. 构建 release 版本 `.app`
+2. 打包为 `InputVoice.zip`
+3. 打 git tag 并推送到 GitHub
+4. 创建 GitHub Release 并上传 zip
+5. 更新 `~/github/homebrew-tap/Casks/inputvoice.rb` 中的版本号和 SHA256
+6. commit 并推送 homebrew-tap
+
+发布完成后用户执行 `brew upgrade --cask inputvoice` 即可升级到新版本。
+
+### 版本号规范
+
+使用语义化版本，格式为 `vMAJOR.MINOR.PATCH`，例如：
+
+- `v1.0.0` — 初始版本
+- `v1.1.0` — 新增功能
+- `v1.1.1` — bug 修复

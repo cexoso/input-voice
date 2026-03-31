@@ -4,8 +4,11 @@ BUILD_DIR = .build
 RELEASE_DIR = $(BUILD_DIR)/release
 APP_BUNDLE = $(APP_NAME).app
 INSTALL_DIR = /Applications
+GITHUB_REPO = cexoso/input-voice
+HOMEBREW_TAP_DIR = $(HOME)/github/homebrew-tap
+CASK_FILE = $(HOMEBREW_TAP_DIR)/Casks/inputvoice.rb
 
-.PHONY: build run install clean sign
+.PHONY: build run install clean release publish
 
 ## Build a signed .app bundle (release mode)
 build:
@@ -56,6 +59,29 @@ release: build
 	@echo "==> SHA256:"
 	@shasum -a 256 $(APP_NAME).zip
 	@echo "==> Done: $(APP_NAME).zip"
+
+## Publish a new GitHub Release and update Homebrew Cask
+## Usage: make publish VERSION=v1.0.0
+publish: release
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make publish VERSION=v1.0.0"; exit 1; fi
+	@echo "==> Tagging $(VERSION)..."
+	@git tag $(VERSION)
+	@git push origin $(VERSION)
+	@echo "==> Creating GitHub Release $(VERSION)..."
+	@SHA=$$(shasum -a 256 $(APP_NAME).zip | awk '{print $$1}'); \
+	gh release create $(VERSION) $(APP_NAME).zip \
+		--repo $(GITHUB_REPO) \
+		--title "$(APP_NAME) $(VERSION)" \
+		--notes "## 安装\n\`\`\`bash\nbrew tap cexoso/tap\nbrew install --cask inputvoice\n\`\`\`\n\n## SHA256\n\`\`\`\n$$SHA  $(APP_NAME).zip\n\`\`\`"; \
+	echo "==> Updating Homebrew Cask..."; \
+	VER=$$(echo $(VERSION) | sed 's/^v//'); \
+	sed -i '' "s/version \".*\"/version \"$$VER\"/" $(CASK_FILE); \
+	sed -i '' "s/sha256 \".*\"/sha256 \"$$SHA\"/" $(CASK_FILE); \
+	cd $(HOMEBREW_TAP_DIR) && \
+	git add Casks/inputvoice.rb && \
+	git commit -m "update inputvoice to $(VERSION)" && \
+	git push origin main
+	@echo "==> Released: https://github.com/$(GITHUB_REPO)/releases/tag/$(VERSION)"
 
 ## Clean build artifacts
 clean:
